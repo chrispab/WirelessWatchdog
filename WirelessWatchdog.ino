@@ -32,7 +32,6 @@ uint8_t readPipeLocG[] = "Node0";
 // Payload
 const int max_payload_size = 32;
 char receive_payload[max_payload_size + 1]; // +1 to allow room for a terminating NULL char
-//static unsigned long lastGoodAckMillis[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }; //setup holders for each unit last good ack
 
 unsigned long maxMillisNoAckFromPi = 1000UL * 300UL; // max millisces to wait if no ack from pi before power cycling pi
 unsigned long waitForPiPowerUpMillis = 1000UL * 120UL;
@@ -151,20 +150,16 @@ void loop(void) {
 
 	updateDisplay(); //rotate messages etc if time to
 	// check each device if restart reqd
-//	checkForRestart(0);
-//	checkForRestart(1);
-//	checkForRestart(2);
 	manageRestarts(0);
 	manageRestarts(1);
 	manageRestarts(2);
-
 }
 
 //check a unit and see if restart reqd
 void manageRestarts(int deviceID) {
 // now check if need to reboot a device
-	if ( (millis() - devices[deviceID].lastGoodAckMillis)
-			> maxMillisNoAckFromPi ) { // over time limit so reboot first time in then just upadte time each other time
+	if ((millis() - devices[deviceID].lastGoodAckMillis)
+			> maxMillisNoAckFromPi) { // over time limit so reboot first time in then just upadte time each other time
 
 		if (devices[deviceID].isRebooting == 0) { // all this done first time triggered
 			printD("Reboot : ");
@@ -175,22 +170,16 @@ void manageRestarts(int deviceID) {
 			Serial.println("triggered reboot in manage reboots");
 			Serial.println(devices[deviceID].rebootMillisLeft);
 			//delay(1000);
-		}
-		else { // this executes till end of reboot timer
-			//device is rebooting now - do some stuff to update countdown timers
-			//wait for pi to come back up - do nothing
-			//millis since last update
+		} else { // this executes till end of reboot timer
+				 //device is rebooting now - do some stuff to update countdown timers
+				 //wait for pi to come back up - do nothing
+				 //millis since last update
 			unsigned long millisLapsed = millis()
 					- devices[deviceID].lastRebootMillisLeftUpdate;
 			devices[deviceID].rebootMillisLeft =
 					devices[deviceID].rebootMillisLeft - millisLapsed;
 
 			devices[deviceID].lastRebootMillisLeftUpdate = millis();
-//
-//			Serial.print("---   lastRebootMillisLeftUpdate: ");
-//			Serial.println(devices[deviceID].lastRebootMillisLeftUpdate);
-//			Serial.print("---rebootMillisLeft: ");
-//			Serial.println(devices[deviceID].rebootMillisLeft);
 
 			if (devices[deviceID].rebootMillisLeft <= 0) { // reboot stuff completed here
 				devices[deviceID].lastGoodAckMillis = millis();
@@ -224,7 +213,8 @@ void updateDisplay(void) {
 		// make sure check for restarting device
 		//if so display current secs in wait for reboot cycle
 		if (devices[stateCounter].isRebooting) {
-			unsigned long secsLeft = (devices[stateCounter].rebootMillisLeft) / 1000UL ;
+			unsigned long secsLeft = (devices[stateCounter].rebootMillisLeft)
+					/ 1000UL;
 
 			Serial.print("--rebootMillisLeft: ");
 			Serial.println((devices[stateCounter].rebootMillisLeft));
@@ -232,19 +222,13 @@ void updateDisplay(void) {
 			Serial.print("--secsLeft var: ");
 			Serial.println(secsLeft);
 
-			char message[]="Reboot ";
-			//*message = strcat(message, (devices[stateCounter].name) );
-			//strcat(message, (devices[stateCounter].name) );
-//			char end_str[1];
-//			end_str[0] = '\0';
-//			strcat(message,end_str);
-			char str_output[30]={0}; //, str_two[]="two";
-			strcpy(str_output, message );
+			char message[] = "Reboot ";
+			char str_output[30] = { 0 }; //, str_two[]="two";
+			strcpy(str_output, message);
 			strcat(str_output, devices[stateCounter].name);
 			strcat(str_output, "Left: ");
 
-			printDWithVal(str_output, secsLeft );
-
+			printDWithVal(str_output, secsLeft);
 
 		} else if ((secsSinceAck > goodSecsMax)) {
 
@@ -318,35 +302,7 @@ void badLED(void) {
 	digitalWrite(greenLEDPin, LOW);
 }
 
-//check a unit and see if restart reqd
-void checkForRestart(int deviceID) {
-// now check if need to reboot a device
-	if ((millis() - devices[deviceID].lastGoodAckMillis)
-			> maxMillisNoAckFromPi) {
-		printD("Reboot : ");
-		powerCycle(deviceID);
-		//wait for pi to come back up - do nothing
-		Serial.println(F("Waiting for Pi to boot up"));
-		printD("Waiting   pi to boot");
-
-		//delay(waitForPiPowerUpMillis);
-		int secsToWait = waitForPiPowerUpMillis / 1000;
-		for (int i = secsToWait; i >= 0; i--) {
-			printDWithVal("Wait on Pi", i);
-			delay(1000);
-		}
-
-		devices[deviceID].lastGoodAckMillis = millis();
-		Serial.println(F("Assume Pi is back up"));
-		printD("Assume pi back up");
-	}
-}
-
 int equalID(char *receive_payload, const char *targetID) {
-//	Serial.print(F("in equalID, rx payload "));
-//	Serial.println(receive_payload);
-//	Serial.print(F("targetID : "));
-//	Serial.println(targetID);
 	//check if same 1st 3 chars
 	if ((receive_payload[0] == targetID[0])
 			&& (receive_payload[1] == targetID[1])
