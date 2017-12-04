@@ -28,6 +28,7 @@ uint8_t readPipeLocC[] = "Node0";
 uint8_t writePipeLocG[] = "NodeG";
 uint8_t readPipeLocG[] = "Node0";
 
+static unsigned int goodSecsMax = 20;
 //
 // Payload
 const int max_payload_size = 32;
@@ -151,7 +152,7 @@ void loop(void) {
 	updateDisplay(); //rotate messages etc if time to
 	// check each device if restart reqd
 	manageRestarts(0);
-	manageRestarts(1);
+	//manageRestarts(1);
 	manageRestarts(2);
 }
 
@@ -199,7 +200,7 @@ void updateDisplay(void) {
 	static unsigned long lastDispUpdateTimeMillis = 0;
 	int dispUpdateFreq = 2; // delay between updates in secs
 	static unsigned long dispUpdateInterval = dispUpdateFreq * 1000;
-	static unsigned int goodSecsMax = 10;
+
 	unsigned long secsSinceAck = 0;
 	// max secs out considered good
 
