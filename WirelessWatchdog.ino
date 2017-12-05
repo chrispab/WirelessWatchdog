@@ -152,12 +152,14 @@ void loop(void) {
 	updateDisplay(); //rotate messages etc if time to
 	// check each device if restart reqd
 	manageRestarts(0);
-	//manageRestarts(1);
+	manageRestarts(1);
 	manageRestarts(2);
 }
 
 //check a unit and see if restart reqd
 void manageRestarts(int deviceID) {
+	//int timerDone = 0;
+
 // now check if need to reboot a device
 	if ((millis() - devices[deviceID].lastGoodAckMillis)
 			> maxMillisNoAckFromPi) { // over time limit so reboot first time in then just upadte time each other time
@@ -177,15 +179,29 @@ void manageRestarts(int deviceID) {
 				 //millis since last update
 			unsigned long millisLapsed = millis()
 					- devices[deviceID].lastRebootMillisLeftUpdate;
-			devices[deviceID].rebootMillisLeft =
-					devices[deviceID].rebootMillisLeft - millisLapsed;
 
+			// next subtraction will take us to/over linit
+			if (millisLapsed >= devices[deviceID].rebootMillisLeft) {
+				//zero or neg reached
+				devices[deviceID].rebootMillisLeft = 0;
+				//timerDone = 1;
+			} else { // ok to do timer subtraction
+				//timerDone = 0;
+
+				devices[deviceID].rebootMillisLeft =
+						devices[deviceID].rebootMillisLeft - millisLapsed;
+
+			}
 			devices[deviceID].lastRebootMillisLeftUpdate = millis();
 
-			if (devices[deviceID].rebootMillisLeft <= 0) { // reboot stuff completed here
+			// calc if next time subtraction takes it below zero
+			//cant get a neg number from unsigned numbers used
+			if (devices[deviceID].rebootMillisLeft == 0) { // reboot stuff completed here
+				//if (timerDone == 1) { // reboot stuff completed here
 				devices[deviceID].lastGoodAckMillis = millis();
 				Serial.println(F("Assume Pi is back up"));
-				printD("Assume pi back up");
+				//printD("Assume pi back up");
+				printD2Str("Assume up:", devices[deviceID].name);
 				devices[deviceID].isRebooting = 0; //signal device has stopped rebooting
 			}
 		}
