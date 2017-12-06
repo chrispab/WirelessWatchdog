@@ -70,7 +70,7 @@ void setup(void) {
 	devices[0].lastGoodAckMillis = millis();
 	strcpy(devices[0].name, "GRG");
 	strcpy(devices[0].heartBeatText, "GGG");
-	strcpy(devices[0].badStatusMess, "GRG Status-");
+	strcpy(devices[0].badStatusMess, "GRG StatusAway: ");
 	strcpy(devices[0].goodStatusMess, "GRG StatusOK");
 	devices[0].isRebooting = 0;
 	devices[0].rebootMillisLeft = 0;
@@ -82,7 +82,7 @@ void setup(void) {
 	devices[1].lastGoodAckMillis = millis();
 	strcpy(devices[1].name, "CNV");
 	strcpy(devices[1].heartBeatText, "CCC");
-	strcpy(devices[1].badStatusMess, "CNV Status-");
+	strcpy(devices[1].badStatusMess, "CNV StatusAway: ");
 	strcpy(devices[1].goodStatusMess, "CNV StatusOK");
 	devices[1].isRebooting = 0;
 	devices[1].rebootMillisLeft = 0;
@@ -94,7 +94,7 @@ void setup(void) {
 	devices[2].lastGoodAckMillis = millis();
 	strcpy(devices[2].name, "SHD");
 	strcpy(devices[2].heartBeatText, "SSS");
-	strcpy(devices[2].badStatusMess, "SHD Status-");
+	strcpy(devices[2].badStatusMess, "SHD StatusAway: ");
 	strcpy(devices[2].goodStatusMess, "SHD StatusOK");
 	devices[2].isRebooting = 0;
 	devices[2].rebootMillisLeft = 0;
@@ -133,7 +133,7 @@ void setup(void) {
 	display.setTextSize(2);
 	display.setTextColor(WHITE);
 	display.setCursor(0, 0);
-	display.println("Listening Watchdog 9");
+	display.println("Wireless  Watchdog 0");
 	display.display();
 	delay(2000);
 	display.clearDisplay();
@@ -152,15 +152,13 @@ void loop(void) {
 	updateDisplay(); //rotate messages etc if time to
 	// check each device if restart reqd
 	manageRestarts(0);
-	manageRestarts(1);
+	//manageRestarts(1);
 	manageRestarts(2);
 }
 
 //check a unit and see if restart reqd
 void manageRestarts(int deviceID) {
-	//int timerDone = 0;
-
-// now check if need to reboot a device
+	// now check if need to reboot a device
 	if ((millis() - devices[deviceID].lastGoodAckMillis)
 			> maxMillisNoAckFromPi) { // over time limit so reboot first time in then just upadte time each other time
 
@@ -186,7 +184,6 @@ void manageRestarts(int deviceID) {
 				devices[deviceID].rebootMillisLeft = 0;
 				//timerDone = 1;
 			} else { // ok to do timer subtraction
-				//timerDone = 0;
 
 				devices[deviceID].rebootMillisLeft =
 						devices[deviceID].rebootMillisLeft - millisLapsed;
@@ -250,7 +247,8 @@ void updateDisplay(void) {
 		} else if ((secsSinceAck > goodSecsMax)) {
 
 			printDWithVal(devices[stateCounter].badStatusMess, secsSinceAck);
-			badLED();
+			//badLED();
+			LEDsOff();
 		} else {
 			printD(devices[stateCounter].goodStatusMess);
 			goodLED();
@@ -285,29 +283,37 @@ void processMessage(void) {
 	receive_payload[len] = 0;
 
 	// Spew it
-	Serial.print(F("Got message: "));
+	//Serial.print(F("Got message: "));
 	//Serial.print(len);
 	//Serial.print(F(" pre use value="));
-	Serial.println(receive_payload);
+	//Serial.println(receive_payload);
 
 	//who was it from?
 	//reset that timer
 	if (equalID(receive_payload, devices[0].heartBeatText)) {
-		devices[0].lastGoodAckMillis = millis();
-		//Serial.println(F("=RESET GGG="));
+		resetDevice(0);
+		Serial.println(F("=RESET GGG="));
 	} else if (equalID(receive_payload, devices[1].heartBeatText)) {
-		devices[1].lastGoodAckMillis = millis();
-		//Serial.println(F("=RESET CCC="));
+		resetDevice(1);
+		//devices[1].lastGoodAckMillis = millis();
+		Serial.println(F("=RESET CCC="));
 	} else if (equalID(receive_payload, devices[2].heartBeatText)) {
-		devices[2].lastGoodAckMillis = millis();
-		//Serial.println(F("=RESET SSS="));
+		resetDevice(2);
+		//devices[2].lastGoodAckMillis = millis();
+		Serial.println(F("=RESET SSS="));
 	} else {
-		//Serial.println(F("=NO MATCH="));
-		badLED();
+		Serial.println(F("=NO MATCH="));
+		//badLED();
+		LEDsOff();
 	}
 
 }
 
+void resetDevice(int deviceID) {
+	devices[deviceID].lastGoodAckMillis = millis();
+	devices[deviceID].isRebooting = 0;
+	devices[deviceID].rebootMillisLeft = 0;
+}
 void goodLED(void) {
 	//switch off red led
 	digitalWrite(redLEDPin, LOW);
@@ -316,6 +322,12 @@ void goodLED(void) {
 void badLED(void) {
 	//switch off red led
 	digitalWrite(redLEDPin, HIGH);
+	digitalWrite(greenLEDPin, LOW);
+}
+
+void LEDsOff(void) {
+	//switch off red led
+	digitalWrite(redLEDPin, LOW);
 	digitalWrite(greenLEDPin, LOW);
 }
 
@@ -365,28 +377,31 @@ void powerCycle(int deviceID) {
 	delay(100);
 	digitalWrite(redLEDPin, LOW);
 
-	beep(1, 2, 1);
+
 
 	if (transmitEnable == 1) {
 		// Switch unit 15 off
 		Serial.println("sending off");
 		//printDWithVal("Power off:", devices[deviceID].socketID);
 		printD2Str("Power off:", devices[deviceID].name);
-
+		badLED();
+		beep(1, 2, 1);
 		for (int i = 0; i < 5; i++) { // turn socket off
 			transmitter.sendUnit(devices[deviceID].socketID, false);
 		}
 
-		delay(300);
+		delay(3000);
 
 		// Switch Rxunit on
 		Serial.println("sending on");
 		printD2Str("Power on :", devices[deviceID].name);
-		beep(1, 2, 1);
+
 
 		for (int i = 0; i < 5; i++) {  // turn socket back on
 			transmitter.sendUnit(devices[deviceID].socketID, true);
 		}
+		LEDsOff();
+		beep(1, 2, 1);
 		Serial.println("complete");
 		printD("PowerCyle:cycle done");
 	} else {
