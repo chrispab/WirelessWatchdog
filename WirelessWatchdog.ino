@@ -7,17 +7,19 @@
 #include <stdint.h>
 #include <WString.h>
 
+#include "LedFader.h"
 NewRemoteTransmitter transmitter(282830, 5, 254, 4);
 
 // Set up nRF24L01 radio on SPI bus plus pins 7 & 8
 RF24 radio(7, 8);
-
 // sets the role of this unit in hardware.  Connect to GND to be the 'pong' receiver
 // Leave open to be the 'ping' transmitter
 const int Tx433Mhz_pin = 5;
 const int redLEDPin = 3;
-const int greenLEDPin = 4;
+const int greenLEDPin = 10;
 const int buzzer = 6;
+const int buttonPin = 9;     // the number of the pushbutton pin
+LedFader strobe(greenLEDPin, 5, 50,  1000);
 
 uint8_t writePipeLocS[] = "NodeS";
 uint8_t readPipeLocS[] = "Node0";
@@ -43,6 +45,8 @@ const int RxUnit = 15;
 const int transmitEnable = 1;
 #define OLED_RESET 4
 Adafruit_SSD1306 display(OLED_RESET);
+
+int buttonState = 0;
 
 // define a struct for each controller instance with related vars
 struct controller {
@@ -107,7 +111,9 @@ void setup(void) {
 	delay(100);
 	goodLED();
 	//digitalWrite(redLEDPin, LOW);
-
+	// initialize the pushbutton pin as an input:
+	pinMode(buttonPin, INPUT);
+	strobe.begin();
 	beep(1, 2, 1);
 
 	Serial.begin(115200);
@@ -150,9 +156,19 @@ void loop(void) {
 	}
 
 	updateDisplay(); //rotate messages etc if time to
+	strobe.update ();
 	// check each device if restart reqd
 	manageRestarts(0);
-	manageRestarts(1);
+	buttonState = digitalRead(buttonPin);
+
+	// check if the pushbutton is pressed. If it is, the buttonState is HIGH:
+	if (buttonState == HIGH) {
+		strcpy(devices[1].goodStatusMess, "CNV StatusOK");
+		manageRestarts(1);
+	} else {
+		strcpy(devices[1].goodStatusMess, "CNV StatusDisabled");
+		resetDevice(1);
+	}
 	manageRestarts(2);
 }
 
@@ -316,19 +332,22 @@ void resetDevice(int deviceID) {
 }
 void goodLED(void) {
 	//switch off red led
-	digitalWrite(redLEDPin, LOW);
-	digitalWrite(greenLEDPin, HIGH);
+	strobe.update();
+//	digitalWrite(redLEDPin, LOW);
+//	digitalWrite(greenLEDPin, HIGH);
 }
 void badLED(void) {
 	//switch off red led
-	digitalWrite(redLEDPin, HIGH);
-	digitalWrite(greenLEDPin, LOW);
+	strobe.update();
+//	digitalWrite(redLEDPin, HIGH);
+//	digitalWrite(greenLEDPin, LOW);
 }
 
 void LEDsOff(void) {
 	//switch off red led
-	digitalWrite(redLEDPin, LOW);
-	digitalWrite(greenLEDPin, LOW);
+	strobe.update();
+//	digitalWrite(redLEDPin, LOW);
+	//digitalWrite(greenLEDPin, LOW);
 }
 
 int equalID(char *receive_payload, const char *targetID) {
@@ -377,10 +396,7 @@ void powerCycle(int deviceID) {
 	delay(100);
 	digitalWrite(redLEDPin, LOW);
 
-
-
 	if (transmitEnable == 1) {
-		// Switch unit 15 off
 		Serial.println("sending off");
 		//printDWithVal("Power off:", devices[deviceID].socketID);
 		printD2Str("Power off:", devices[deviceID].name);
@@ -395,7 +411,6 @@ void powerCycle(int deviceID) {
 		// Switch Rxunit on
 		Serial.println("sending on");
 		printD2Str("Power on :", devices[deviceID].name);
-
 
 		for (int i = 0; i < 5; i++) {  // turn socket back on
 			transmitter.sendUnit(devices[deviceID].socketID, true);
