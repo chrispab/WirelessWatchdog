@@ -70,7 +70,7 @@ void setup(void) {
 	devices[0].lastGoodAckMillis = millis();
 	strcpy(devices[0].name, "GRG");
 	strcpy(devices[0].heartBeatText, "GGG");
-	strcpy(devices[0].badStatusMess, "GRG StatusAway: ");
+	strcpy(devices[0].badStatusMess, "GRG StatusAway:");
 	strcpy(devices[0].goodStatusMess, "GRG StatusOK");
 	devices[0].isRebooting = 0;
 	devices[0].rebootMillisLeft = 0;
@@ -82,7 +82,7 @@ void setup(void) {
 	devices[1].lastGoodAckMillis = millis();
 	strcpy(devices[1].name, "CNV");
 	strcpy(devices[1].heartBeatText, "CCC");
-	strcpy(devices[1].badStatusMess, "CNV StatusAway: ");
+	strcpy(devices[1].badStatusMess, "CNV StatusAway:");
 	strcpy(devices[1].goodStatusMess, "CNV StatusOK");
 	devices[1].isRebooting = 0;
 	devices[1].rebootMillisLeft = 0;
@@ -94,7 +94,7 @@ void setup(void) {
 	devices[2].lastGoodAckMillis = millis();
 	strcpy(devices[2].name, "SHD");
 	strcpy(devices[2].heartBeatText, "SSS");
-	strcpy(devices[2].badStatusMess, "SHD StatusAway: ");
+	strcpy(devices[2].badStatusMess, "SHD StatusAway:");
 	strcpy(devices[2].goodStatusMess, "SHD StatusOK");
 	devices[2].isRebooting = 0;
 	devices[2].rebootMillisLeft = 0;
@@ -152,7 +152,7 @@ void loop(void) {
 	updateDisplay(); //rotate messages etc if time to
 	// check each device if restart reqd
 	manageRestarts(0);
-	//manageRestarts(1);
+	manageRestarts(1);
 	manageRestarts(2);
 }
 
