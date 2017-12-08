@@ -19,7 +19,8 @@ const int redLEDPin = 3;
 const int greenLEDPin = 10;
 const int buzzer = 6;
 const int buttonPin = 9;     // the number of the pushbutton pin
-LedFader strobe(greenLEDPin, 5, 50,  1000);
+LedFader strobe(greenLEDPin, 1, 30,  1000);
+LedFader blip(redLEDPin, 0, 4,  456);
 
 uint8_t writePipeLocS[] = "NodeS";
 uint8_t readPipeLocS[] = "Node0";
@@ -114,6 +115,7 @@ void setup(void) {
 	// initialize the pushbutton pin as an input:
 	pinMode(buttonPin, INPUT);
 	strobe.begin();
+	blip.begin();
 	beep(1, 2, 1);
 
 	Serial.begin(115200);
@@ -156,7 +158,8 @@ void loop(void) {
 	}
 
 	updateDisplay(); //rotate messages etc if time to
-	strobe.update ();
+	strobe.update();
+	blip.update();
 	// check each device if restart reqd
 	manageRestarts(0);
 	buttonState = digitalRead(buttonPin);
