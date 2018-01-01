@@ -7,7 +7,7 @@
 #include <stdint.h>
 #include <WString.h>
 
-#include "LedFader.h"
+#include <LedFader.h>
 NewRemoteTransmitter transmitter(282830, 5, 254, 4);
 
 // Set up nRF24L01 radio on SPI bus plus pins 7 & 8
@@ -17,10 +17,14 @@ RF24 radio(7, 8);
 const int Tx433Mhz_pin = 5;
 const int redLEDPin = 3;
 const int greenLEDPin = 10;
+const int blueLEDPin = 9;
 const int buzzer = 6;
-const int buttonPin = 9;     // the number of the pushbutton pin
-LedFader strobe(greenLEDPin, 1, 30,  1000);
-LedFader blip(redLEDPin, 0, 4,  456);
+const int switchPin = A7;     // the number of the pushbutton pin
+const int analogue_switches = A0; // ip port A0
+
+LedFader strobe(greenLEDPin, 0, 30, 1000);
+LedFader blip(redLEDPin, 0, 20, 456);
+LedFader blop(blueLEDPin, 0, 128, 1321);
 
 uint8_t writePipeLocS[] = "NodeS";
 uint8_t readPipeLocS[] = "Node0";
@@ -42,12 +46,13 @@ unsigned long waitForPiPowerUpMillis = 1000UL * 120UL;
 //const unsigned long maxMillisNoAckFromPi = 1000UL * 30UL; // max millisces to wait if no ack from pi before power cycling pi
 //const unsigned long waitForPiPowerUpMillis = 1000UL * 30UL;
 
-const int RxUnit = 15;
+//const int RxUnit = 15;
 const int transmitEnable = 1;
 #define OLED_RESET 4
 Adafruit_SSD1306 display(OLED_RESET);
 
-int buttonState = 0;
+int switchState = 0;
+int x = 0;
 
 // define a struct for each controller instance with related vars
 struct controller {
@@ -108,15 +113,20 @@ void setup(void) {
 	//setup leds
 	pinMode(redLEDPin, OUTPUT);
 	pinMode(greenLEDPin, OUTPUT);
+	pinMode(blueLEDPin, OUTPUT);
 	badLED();
 	delay(100);
 	goodLED();
 	//digitalWrite(redLEDPin, LOW);
 	// initialize the pushbutton pin as an input:
-	pinMode(buttonPin, INPUT);
+
+	//pinMode(switchPin, INPUT);
+	//digitalWrite(switchPin, INPUT_PULLUP);
+
 	strobe.begin();
 	blip.begin();
-	beep(1, 2, 1);
+	blop.begin();
+	//beep(1, 2, 1);
 
 	Serial.begin(115200);
 	printf_begin();
@@ -141,7 +151,7 @@ void setup(void) {
 	display.setTextSize(2);
 	display.setTextColor(WHITE);
 	display.setCursor(0, 0);
-	display.println("Wireless  Watchdog 0");
+	display.println("Wireless  Watchdog 1");
 	display.display();
 	delay(2000);
 	display.clearDisplay();
@@ -157,15 +167,23 @@ void loop(void) {
 		processMessage();
 	}
 
+	x = analogRead(analogue_switches);
+	//Serial.println((x));
+	displayKeys(x);
+
 	updateDisplay(); //rotate messages etc if time to
 	strobe.update();
 	blip.update();
+	blop.update();
 	// check each device if restart reqd
 	manageRestarts(0);
-	buttonState = digitalRead(buttonPin);
+
+	//pinMode(switchPin, INPUT);
+	switchState = analogRead(switchPin);
+	//switchState = 1;
 
 	// check if the pushbutton is pressed. If it is, the buttonState is HIGH:
-	if (buttonState == HIGH) {
+	if (switchState > 512) {
 		strcpy(devices[1].goodStatusMess, "CNV StatusOK");
 		manageRestarts(1);
 	} else {
@@ -173,6 +191,20 @@ void loop(void) {
 		resetDevice(1);
 	}
 	manageRestarts(2);
+}
+
+void displayKeys(int x) {
+	if (x < 60) {
+		printDWithVal("Left ", x);
+	} else if (x < 200) {
+		printDWithVal("Up    ", x);
+	} else if (x < 400) {
+		printDWithVal("Down  ", x);
+	} else if (x < 600) {
+		printDWithVal("Right  ", x);
+	} else if (x < 800) {
+		printDWithVal("OK  ", x);
+	}
 }
 
 //check a unit and see if restart reqd
@@ -430,10 +462,10 @@ void powerCycle(int deviceID) {
 
 void beep(int numBeeps, int onDuration, int offDuration) {
 	for (int i = 0; i < numBeeps; i++) {
-		pinMode(buzzer, OUTPUT);
-		digitalWrite(buzzer, HIGH);
+		//pinMode(buzzer, OUTPUT);
+		//digitalWrite(buzzer, HIGH);
 		delay(onDuration);
-		digitalWrite(buzzer, LOW);
+		//digitalWrite(buzzer, LOW);
 		delay(offDuration);
 	}
 }
