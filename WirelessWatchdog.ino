@@ -22,9 +22,9 @@ const int buzzer = 6;
 const int switchPin = A7;     // the number of the pushbutton pin
 const int analogue_switches = A0; // ip port A0
 
-LedFader strobe(greenLEDPin, 0, 30, 1000);
-LedFader blip(redLEDPin, 0, 20, 456);
-LedFader blop(blueLEDPin, 0, 128, 1321);
+LedFader heartBeat(greenLEDPin, 0, 20, 900);
+LedFader rebootAlert(redLEDPin, 0, 20, 456);
+LedFader blueAlert(blueLEDPin, 0, 0, 1321);
 
 uint8_t writePipeLocS[] = "NodeS";
 uint8_t readPipeLocS[] = "Node0";
@@ -123,9 +123,11 @@ void setup(void) {
 	//pinMode(switchPin, INPUT);
 	//digitalWrite(switchPin, INPUT_PULLUP);
 
-	strobe.begin();
-	blip.begin();
-	blop.begin();
+	heartBeat.begin();
+	rebootAlert.begin();
+	rebootAlert.off();
+
+	blueAlert.begin();
 	//beep(1, 2, 1);
 
 	Serial.begin(115200);
@@ -172,9 +174,9 @@ void loop(void) {
 	displayKeys(x);
 
 	updateDisplay(); //rotate messages etc if time to
-	strobe.update();
-	blip.update();
-	blop.update();
+	heartBeat.update();
+	rebootAlert.update();
+	blueAlert.update();
 	// check each device if restart reqd
 	manageRestarts(0);
 
@@ -367,20 +369,21 @@ void resetDevice(int deviceID) {
 }
 void goodLED(void) {
 	//switch off red led
-	strobe.update();
+	heartBeat.update();
 //	digitalWrite(redLEDPin, LOW);
 //	digitalWrite(greenLEDPin, HIGH);
 }
 void badLED(void) {
 	//switch off red led
-	strobe.update();
+	rebootAlert.on();
+	heartBeat.update();
 //	digitalWrite(redLEDPin, HIGH);
 //	digitalWrite(greenLEDPin, LOW);
 }
 
 void LEDsOff(void) {
 	//switch off red led
-	strobe.update();
+	heartBeat.update();
 //	digitalWrite(redLEDPin, LOW);
 	//digitalWrite(greenLEDPin, LOW);
 }
