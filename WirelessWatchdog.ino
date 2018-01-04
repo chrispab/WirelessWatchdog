@@ -1,4 +1,4 @@
-#include <Adafruit_SSD1306.h>
+//#include <Adafruit_SSD1306.h>
 #include <Arduino.h>
 #include <HardwareSerial.h>
 #include <NewRemoteTransmitter.h>
@@ -8,6 +8,11 @@
 #include <WString.h>
 
 #include <LedFader.h>
+
+#include <U8g2lib.h>
+U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE, /* clock=*/
+SCL, /* data=*/SDA);   // pin remapping with ESP8266 HW I2C
+
 NewRemoteTransmitter transmitter(282830, 5, 254, 4);
 
 // Set up nRF24L01 radio on SPI bus plus pins 7 & 8
@@ -48,8 +53,8 @@ unsigned long waitForPiPowerUpMillis = 1000UL * 120UL;
 
 //const int RxUnit = 15;
 const int transmitEnable = 1;
-#define OLED_RESET 4
-Adafruit_SSD1306 display(OLED_RESET);
+//#define OLED_RESET 4
+//Adafruit_SSD1306 display(OLED_RESET);
 
 int switchState = 0;
 int x = 0;
@@ -80,8 +85,8 @@ void setup(void) {
 	devices[0].lastGoodAckMillis = millis();
 	strcpy(devices[0].name, "GRG");
 	strcpy(devices[0].heartBeatText, "GGG");
-	strcpy(devices[0].badStatusMess, "GRG StatusAway:");
-	strcpy(devices[0].goodStatusMess, "GRG StatusOK");
+	strcpy(devices[0].badStatusMess, "GRG Away: ");
+	strcpy(devices[0].goodStatusMess, "GRG OK");
 	devices[0].isRebooting = 0;
 	devices[0].rebootMillisLeft = 0;
 	devices[0].lastRebootMillisLeftUpdate = millis();
@@ -92,8 +97,8 @@ void setup(void) {
 	devices[1].lastGoodAckMillis = millis();
 	strcpy(devices[1].name, "CNV");
 	strcpy(devices[1].heartBeatText, "CCC");
-	strcpy(devices[1].badStatusMess, "CNV StatusAway:");
-	strcpy(devices[1].goodStatusMess, "CNV StatusOK");
+	strcpy(devices[1].badStatusMess, "CNV Away: ");
+	strcpy(devices[1].goodStatusMess, "CNV OK");
 	devices[1].isRebooting = 0;
 	devices[1].rebootMillisLeft = 0;
 	devices[1].lastRebootMillisLeftUpdate = millis();
@@ -104,8 +109,8 @@ void setup(void) {
 	devices[2].lastGoodAckMillis = millis();
 	strcpy(devices[2].name, "SHD");
 	strcpy(devices[2].heartBeatText, "SSS");
-	strcpy(devices[2].badStatusMess, "SHD StatusAway:");
-	strcpy(devices[2].goodStatusMess, "SHD StatusOK");
+	strcpy(devices[2].badStatusMess, "SHD Away: ");
+	strcpy(devices[2].goodStatusMess, "SHD OK");
 	devices[2].isRebooting = 0;
 	devices[2].rebootMillisLeft = 0;
 	devices[2].lastRebootMillisLeftUpdate = millis();
@@ -147,17 +152,41 @@ void setup(void) {
 	radio.printDetails();
 	// autoACK enabled by default
 
-	display.begin(SSD1306_SWITCHCAPVCC, 0x3C); // initialize with the I2C addr 0x3C (for the 128x32)
+	u8g2.begin();
+
+	u8g2.clearBuffer();
+	u8g2.setFont(u8g2_font_t0_15_tf);
+	//u8g2.setFont(u8g2_font_7x14_tf);
+	//u8g2.setFont(u8g2_font_7x14_tf);
+	//u8g2.setFont(u8g2_font_8x13B_tf);
+	//u8g2.setFont(u8g2_font_7x14_mr);
+
+	// 17 chars by 3 lines at this font size
+	u8g2.drawStr(30, 10, "Wireless");
+	u8g2.drawStr(30, 21, "Watchdog");
+	u8g2.drawStr(45, 32, "V1.1");
+
+	//u8g2.setFont(u8g2_font_6x13_tf);
+	//u8g2.setCursor(0, 21);
+	//u8g2.print("m");
+
+	//u8g2.setCursor(0, 32);
+	//u8g2.print("A");
+
+	u8g2.sendBuffer();
+
+	//display.begin(SSD1306_SWITCHCAPVCC, 0x3C); // initialize with the I2C addr 0x3C (for the 128x32)
 	// init done
-	display.clearDisplay();
-	display.setTextSize(2);
-	display.setTextColor(WHITE);
-	display.setCursor(0, 0);
-	display.println("Wireless  Watchdog 1");
-	display.display();
-	delay(2000);
-	display.clearDisplay();
-	display.display();
+//	display.clearDisplay();
+//	display.setTextSize(2);
+//	display.setTextColor(WHITE);
+//	display.setCursor(0, 0);
+//	display.println("Wireless  Watchdog 1");
+//	display.display();
+	delay(5000);
+//	display.clearDisplay();
+//	display.display();
+//
 	setPipes(writePipeLocC, readPipeLocC); // SHOULD NEVER NEED TO CHANGE PIPES
 	radio.startListening();
 }
@@ -185,28 +214,29 @@ void loop(void) {
 	//switchState = 1;
 
 	// check if the pushbutton is pressed. If it is, the buttonState is HIGH:
+	switchState=1024;
 	if (switchState > 512) {
-		strcpy(devices[1].goodStatusMess, "CNV StatusOK");
+		strcpy(devices[1].goodStatusMess, "CNV OK");
 		manageRestarts(1);
 	} else {
-		strcpy(devices[1].goodStatusMess, "CNV StatusDisabled");
+		strcpy(devices[1].goodStatusMess, "CNV Disabled");
 		resetDevice(1);
 	}
 	manageRestarts(2);
 }
 
 void displayKeys(int x) {
-	if (x < 60) {
-		printDWithVal("Left ", x);
-	} else if (x < 200) {
-		printDWithVal("Up    ", x);
-	} else if (x < 400) {
-		printDWithVal("Down  ", x);
-	} else if (x < 600) {
-		printDWithVal("Right  ", x);
-	} else if (x < 800) {
-		printDWithVal("OK  ", x);
-	}
+	/*	if (x < 60) {
+	 printDWithVal("L", x);
+	 } else if (x < 200) {
+	 printDWithVal("U", x);
+	 } else if (x < 400) {
+	 printDWithVal("D", x);
+	 } else if (x < 600) {
+	 printDWithVal("R", x);
+	 } else if (x < 800) {
+	 printDWithVal("K", x);
+	 }*/
 }
 
 //check a unit and see if restart reqd
@@ -216,7 +246,7 @@ void manageRestarts(int deviceID) {
 			> maxMillisNoAckFromPi) { // over time limit so reboot first time in then just upadte time each other time
 
 		if (devices[deviceID].isRebooting == 0) { // all this done first time triggered
-			printD("Reboot : ");
+			//printD("Reboot : ");
 			powerCycle(deviceID);
 			devices[deviceID].isRebooting = 1; //signal device is rebooting
 			devices[deviceID].rebootMillisLeft = waitForPiPowerUpMillis;
@@ -251,7 +281,7 @@ void manageRestarts(int deviceID) {
 				devices[deviceID].lastGoodAckMillis = millis();
 				Serial.println(F("Assume Pi is back up"));
 				//printD("Assume pi back up");
-				printD2Str("Assume up:", devices[deviceID].name);
+				//printD2Str("Assume up:", devices[deviceID].name);
 				devices[deviceID].isRebooting = 0; //signal device has stopped rebooting
 			}
 		}
@@ -259,12 +289,13 @@ void manageRestarts(int deviceID) {
 }
 
 void updateDisplay(void) {
-	//check if time to display a new message
-	//rotate every n secs standard info messages
-	// overide if hit reset procedure
-	static int stateCounter = 0; // only initialised once at start
+	//all three lines can be displayed at once
+	//so no timer needed
+	//check if time to display a new message updates
+
+	int stateCounter; // only initialised once at start
 	static unsigned long lastDispUpdateTimeMillis = 0;
-	int dispUpdateFreq = 2; // delay between updates in secs
+	int dispUpdateFreq = 1; // delay between updates in secs
 	static unsigned long dispUpdateInterval = dispUpdateFreq * 1000;
 
 	unsigned long secsSinceAck = 0;
@@ -272,47 +303,61 @@ void updateDisplay(void) {
 
 	//Serial.println(stateCounter);
 	// this loop
+	//create info string for each zone then display it
+	//setup disp
+	u8g2.clearBuffer();
+	u8g2.setFont(u8g2_font_7x14_tf);
+
 	if ((millis() - lastDispUpdateTimeMillis) >= dispUpdateInterval) { //ready to update?
-		//Serial.println(stateCounter);
+		for (stateCounter = 0; stateCounter < 3; stateCounter++) {
+			//Serial.println(stateCounter);
+			secsSinceAck = (millis() - devices[stateCounter].lastGoodAckMillis)
+					/ 1000;
 
-		secsSinceAck = (millis() - devices[stateCounter].lastGoodAckMillis)
-				/ 1000;
-		// make sure check for restarting device
-		//if so display current secs in wait for reboot cycle
-		if (devices[stateCounter].isRebooting) {
-			unsigned long secsLeft = (devices[stateCounter].rebootMillisLeft)
-					/ 1000UL;
+			u8g2.setCursor(0, ( (stateCounter + 1) * 10) + (1*stateCounter) );
+			// make sure check for restarting device
+			//if so display current secs in wait for reboot cycle
+			if (devices[stateCounter].isRebooting) {
+				unsigned long secsLeft =
+						(devices[stateCounter].rebootMillisLeft) / 1000UL;
 
-			Serial.print("--rebootMillisLeft: ");
-			Serial.println((devices[stateCounter].rebootMillisLeft));
+				Serial.print("--rebootMillisLeft: ");
+				Serial.println((devices[stateCounter].rebootMillisLeft));
 
-			Serial.print("--secsLeft var: ");
-			Serial.println(secsLeft);
+				Serial.print("--secsLeft var: ");
+				Serial.println(secsLeft);
 
-			char message[] = "Reboot ";
-			char str_output[30] = { 0 }; //, str_two[]="two";
-			strcpy(str_output, message);
-			strcat(str_output, devices[stateCounter].name);
-			strcat(str_output, "Left: ");
+				char message[] = " Rebooting: ";
+				char str_output[30] = { 0 }; //, str_two[]="two";
+				strcat(str_output, devices[stateCounter].name);
+				strcat(str_output, message);
 
-			printDWithVal(str_output, secsLeft);
+				//strcat(str_output, "Left: ");
 
-		} else if ((secsSinceAck > goodSecsMax)) {
+				//u8g2.print("r");
+				printDWithVal(str_output, secsLeft);
+				//u8g2.clearBuffer();
 
-			printDWithVal(devices[stateCounter].badStatusMess, secsSinceAck);
-			//badLED();
-			LEDsOff();
-		} else {
-			printD(devices[stateCounter].goodStatusMess);
-			goodLED();
+			} else if ((secsSinceAck > goodSecsMax)) {
+
+				//u8g2.print("w");
+				printDWithVal(devices[stateCounter].badStatusMess, secsSinceAck);
+				//badLED();
+				LEDsOff();
+			} else {
+				//u8g2.print("u");
+				printD(devices[stateCounter].goodStatusMess);
+				goodLED();
+			}
+
 		}
-
-		stateCounter++;
-		if (stateCounter == 3)
-			stateCounter = 0;
-
+		//now print out message line at correct cursor loc
+		//move cursor tonew loc
 		lastDispUpdateTimeMillis = millis();
+		u8g2.sendBuffer();
 	}
+	//now send buffer to display
+
 }
 
 void processMessage(void) {
@@ -407,25 +452,25 @@ void setPipes(uint8_t *writingPipe, uint8_t *readingPipe) {
 }
 
 void printD(const char *message) {
-	display.clearDisplay();
-	display.setCursor(0, 0);
-	display.print(message);
-	display.display();
+//	display.clearDisplay();
+//	display.setCursor(0, 0);
+	u8g2.print(message);
+//	display.display();
 }
 
 void printDWithVal(const char *message, int value) {
-	display.clearDisplay();
-	display.setCursor(0, 0);
-	display.print(message);
-	display.print(value);
-	display.display();
+//	display.clearDisplay();
+//	display.setCursor(0, 0);
+	u8g2.print(message);
+	u8g2.print(value);
+//	display.display();
 }
 void printD2Str(const char *str1, char *str2) {
-	display.clearDisplay();
-	display.setCursor(0, 0);
-	display.print(str1);
-	display.print(str2);
-	display.display();
+//	display.clearDisplay();
+//	display.setCursor(0, 0);
+	u8g2.print(str1);
+	u8g2.print(str2);
+//	display.display();
 }
 
 void powerCycle(int deviceID) {
@@ -437,7 +482,7 @@ void powerCycle(int deviceID) {
 	if (transmitEnable == 1) {
 		Serial.println("sending off");
 		//printDWithVal("Power off:", devices[deviceID].socketID);
-		printD2Str("Power off:", devices[deviceID].name);
+		//printD2Str("Power off:", devices[deviceID].name);
 		badLED();
 		beep(1, 2, 1);
 		for (int i = 0; i < 5; i++) { // turn socket off
@@ -448,7 +493,7 @@ void powerCycle(int deviceID) {
 
 		// Switch Rxunit on
 		Serial.println("sending on");
-		printD2Str("Power on :", devices[deviceID].name);
+		//printD2Str("Power on :", devices[deviceID].name);
 
 		for (int i = 0; i < 5; i++) {  // turn socket back on
 			transmitter.sendUnit(devices[deviceID].socketID, true);
@@ -456,7 +501,7 @@ void powerCycle(int deviceID) {
 		LEDsOff();
 		beep(1, 2, 1);
 		Serial.println("complete");
-		printD("PowerCyle:cycle done");
+		//printD("PowerCyle:cycle done");
 	} else {
 		Serial.println("not transmitting");
 
