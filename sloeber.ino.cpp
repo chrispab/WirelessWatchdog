@@ -2,20 +2,26 @@
 //This is a automatic generated file
 //Please do not modify this file
 //If you touch this file your change will be overwritten during the next build
-//This file has been generated on 2017-12-07 16:18:47
+//This file has been generated on 2018-03-07 19:06:29
 
 #include "Arduino.h"
-#include <Adafruit_SSD1306.h>
 #include <Arduino.h>
 #include <HardwareSerial.h>
 #include <NewRemoteTransmitter.h>
+#include <NewRemoteReceiver.h>
 #include <printf.h>
 #include <RF24.h>
 #include <stdint.h>
 #include <WString.h>
+#include <LedFader.h>
+#include <U8g2lib.h>
 
 void setup(void) ;
 void loop(void) ;
+int freeRam() ;
+void printFreeRam(void) ;
+void displayKeys(int x) ;
+void showCode(NewRemoteCode receivedCode) ;
 void manageRestarts(int deviceID) ;
 void updateDisplay(void) ;
 void processMessage(void) ;
@@ -27,7 +33,7 @@ int equalID(char *receive_payload, const char *targetID) ;
 void setPipes(uint8_t *writingPipe, uint8_t *readingPipe) ;
 void printD(const char *message) ;
 void printDWithVal(const char *message, int value) ;
-void printD2Str(const char *str1, char *str2) ;
+void printD2Str(const char *str1, const char *str2) ;
 void powerCycle(int deviceID) ;
 void beep(int numBeeps, int onDuration, int offDuration) ;
 

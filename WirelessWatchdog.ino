@@ -1,45 +1,47 @@
-//#include <Adafruit_SSD1306.h>
 #include <Arduino.h>
 #include <HardwareSerial.h>
 #include <NewRemoteTransmitter.h>
+#include <NewRemoteReceiver.h>
+
 #include <printf.h>
 #include <RF24.h>
 #include <stdint.h>
 #include <WString.h>
-
 #include <LedFader.h>
-
 #include <U8g2lib.h>
 U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE, /* clock=*/
 SCL, /* data=*/SDA);   // pin remapping with ESP8266 HW I2C
 
 //#define OLD_HARDWARE
-//#define NEW_HARDWARE
+////#define NEW_HARDWARE
 
-NewRemoteTransmitter transmitter(282830, 5, 254, 4);
+#define TX433PIN 5
+#define RX433PIN 2
+NewRemoteTransmitter transmitter(282830, TX433PIN, 254, 4);
+//NewRemoteReceiver receiver()
 
 // Set up nRF24L01 radio on SPI bus plus pins 7 & 8
 RF24 radio(7, 8);
-// sets the role of this unit in hardware.  Connect to GND to be the 'pong' receiver
-// Leave open to be the 'ping' transmitter
-//const int Tx433Mhz_pin = 5;
-const int redLEDPin = 3;
-const int greenLEDPin = 10;
-const int blueLEDPin = 9;
+
+//==================================================
+//all tweakable params etc
+#define SW_VERSION "2.0"
+
 //const int buzzer = 6;
 const int switchPin = A7;     // the number of the pushbutton pin
 const int analogue_switches = A0; // ip port A0
-
+int dispUpdateFreq = 1.5; // how many updates per sec
+const int redLEDPin = 3;
+const int greenLEDPin = 10;
+const int blueLEDPin = 9;
 LedFader heartBeat(greenLEDPin, 0, 20, 900);
 LedFader rebootAlert(redLEDPin, 0, 20, 456);
 LedFader blueAlert(blueLEDPin, 0, 0, 1321);
 
 uint8_t writePipeLocS[] = "NodeS";
 uint8_t readPipeLocS[] = "Node0";
-
 uint8_t writePipeLocC[] = "NodeC";
 uint8_t readPipeLocC[] = "Node0";
-
 uint8_t writePipeLocG[] = "NodeG";
 uint8_t readPipeLocG[] = "Node0";
 
@@ -49,21 +51,16 @@ const int max_payload_size = 32;
 char receive_payload[max_payload_size + 1]; // +1 to allow room for a terminating NULL char
 
 #ifdef OLD_HARDWARE
-	static unsigned int goodSecsMax = 10; //20
-	static unsigned long maxMillisNoAckFromPi = 1000UL * 30UL; //300 max millisces to wait if no ack from pi before power cycling pi
-	static unsigned long waitForPiPowerUpMillis = 1000UL * 20UL; //120
-#else
-	static unsigned int goodSecsMax = 10; //20
-	static unsigned long maxMillisNoAckFromPi = 1000UL * 300UL; //300 max millisces to wait if no ack from pi before power cycling pi
-	static unsigned long waitForPiPowerUpMillis = 1000UL * 120UL; //120
+static unsigned int goodSecsMax = 10; //20
+static unsigned long maxMillisNoAckFromPi = 1000UL * 30UL;//300 max millisces to wait if no ack from pi before power cycling pi
+static unsigned long waitForPiPowerUpMillis = 1000UL * 20UL;//120
+#else // new hardware
+static unsigned int goodSecsMax = 15; //20
+static unsigned long maxMillisNoAckFromPi = 1000UL * 300UL; //300 max millisces to wait if no ack from pi before power cycling pi
+static unsigned long waitForPiPowerUpMillis = 1000UL * 120UL; //120
 #endif
-//const unsigned long maxMillisNoAckFromPi = 1000UL * 30UL; // max millisces to wait if no ack from pi before power cycling pi
-//const unsigned long waitForPiPowerUpMillis = 1000UL * 30UL;
 
-//const int RxUnit = 15;
-const int transmitEnable = 1;
-//#define OLED_RESET 4
-//Adafruit_SSD1306 display(OLED_RESET);
+const uint8_t transmitEnable = 1;
 
 int switchState = 0;
 int x = 0;
@@ -76,15 +73,16 @@ struct controller {
 	unsigned long lastGoodAckMillis;
 	char name[4];
 	char heartBeatText[4]; // allow enough space for text plus 1 extra for null terminator
-	char badStatusMess[10]; // enugh for two lines on display
-	char goodStatusMess[10]; // enugh for two lines on display
+	char badStatusMess[10]; // enough for 1 line on display
+	char goodStatusMess[10]; // enough for 1 line on display
 	bool isRebooting; //indicate if booting up
 	bool isPowerCycling; //indicate if power cycling
 	unsigned long rebootMillisLeft;
 	unsigned long lastRebootMillisLeftUpdate;
+	uint8_t powerCyclesSincePowerOn;
 };
 
-struct controller devices[4]; //create an array of 4 controller structures
+struct controller devices[3]; //create an array of 3 controller structures
 
 void setup(void) {
 
@@ -95,12 +93,13 @@ void setup(void) {
 	devices[0].lastGoodAckMillis = millis();
 	strcpy(devices[0].name, "GRG");
 	strcpy(devices[0].heartBeatText, "GGG");
-	strcpy(devices[0].badStatusMess, "Away: ");
+	strcpy(devices[0].badStatusMess, "Away");
 	strcpy(devices[0].goodStatusMess, "OK");
 	devices[0].isRebooting = 0;
 	devices[0].isPowerCycling = 0;
 	devices[0].rebootMillisLeft = 0;
 	devices[0].lastRebootMillisLeftUpdate = millis();
+	devices[0].powerCyclesSincePowerOn = 0;
 
 	devices[1].id_number = 1;
 	devices[1].zone = 2;
@@ -108,12 +107,13 @@ void setup(void) {
 	devices[1].lastGoodAckMillis = millis();
 	strcpy(devices[1].name, "CNV");
 	strcpy(devices[1].heartBeatText, "CCC");
-	strcpy(devices[1].badStatusMess, "Away: ");
+	strcpy(devices[1].badStatusMess, "Away");
 	strcpy(devices[1].goodStatusMess, "OK");
 	devices[1].isRebooting = 0;
 	devices[1].isPowerCycling = 0;
 	devices[1].rebootMillisLeft = 0;
 	devices[1].lastRebootMillisLeftUpdate = millis();
+	devices[1].powerCyclesSincePowerOn = 0;
 
 	devices[2].id_number = 2;
 	devices[2].zone = 3;
@@ -121,12 +121,13 @@ void setup(void) {
 	devices[2].lastGoodAckMillis = millis();
 	strcpy(devices[2].name, "SHD");
 	strcpy(devices[2].heartBeatText, "SSS");
-	strcpy(devices[2].badStatusMess, "Away: ");
+	strcpy(devices[2].badStatusMess, "Away");
 	strcpy(devices[2].goodStatusMess, "OK");
 	devices[2].isRebooting = 0;
 	devices[2].isPowerCycling = 0;
 	devices[2].rebootMillisLeft = 0;
 	devices[2].lastRebootMillisLeftUpdate = millis();
+	devices[2].powerCyclesSincePowerOn = 0;
 
 	//setup leds
 	pinMode(redLEDPin, OUTPUT);
@@ -168,52 +169,44 @@ void setup(void) {
 	u8g2.begin();
 
 	u8g2.clearBuffer();
-	u8g2.setFont(u8g2_font_t0_15_tf);
-	//u8g2.setFont(u8g2_font_7x14_tf);
-	//u8g2.setFont(u8g2_font_7x14_tf);
+//	u8g2.setFont(u8g2_font_t0_15_tf);
+//	u8g2.setFont(u8g2_font_7x14_tf);
+	//u8g2.setFont(u8g2_font_profont15_tf);
 	//u8g2.setFont(u8g2_font_8x13B_tf);
-	//u8g2.setFont(u8g2_font_7x14_mr);
+	u8g2.setFont(u8g2_font_8x13_tf);
 
 	// 17 chars by 3 lines at this font size
 	u8g2.drawStr(30, 10, "Wireless");
 	u8g2.drawStr(30, 21, "Watchdog");
-	u8g2.drawStr(45, 32, "V1.1");
-
-	//u8g2.setFont(u8g2_font_6x13_tf);
-	//u8g2.setCursor(0, 21);
-	//u8g2.print("m");
-
-	//u8g2.setCursor(0, 32);
-	//u8g2.print("A");
+	u8g2.drawStr(45, 32, SW_VERSION);
 
 	u8g2.sendBuffer();
 
-	//display.begin(SSD1306_SWITCHCAPVCC, 0x3C); // initialize with the I2C addr 0x3C (for the 128x32)
-	// init done
-//	display.clearDisplay();
-//	display.setTextSize(2);
-//	display.setTextColor(WHITE);
-//	display.setCursor(0, 0);
-//	display.println("Wireless  Watchdog 1");
-//	display.display();
-	delay(5000);
-//	display.clearDisplay();
-//	display.display();
-//
+	delay(3000);
+
 	setPipes(writePipeLocC, readPipeLocC); // SHOULD NEVER NEED TO CHANGE PIPES
 	radio.startListening();
+
+	  // Initialize receiver on interrupt 0 (= digital pin 2), calls the callback "showCode"
+	  // after 2 identical codes have been received in a row. (thus, keep the button pressed
+	  // for a moment)
+	  //
+	  // See the interrupt-parameter of attachInterrupt for possible values (and pins)
+	  // to connect the receiver.
+	  NewRemoteReceiver::init(0, 2, showCode);
 }
 
 void loop(void) {
 
-	while (radio.available()) {            // Read all available payloads
-		//Serial.println(F("Processing next available message.. "));
-		processMessage();
-	}
+	//while (radio.available()) {            // Read all available payloads
+	//Serial.println(F("Processing next available message.. "));
+	processMessage();
+	//}
 
 	x = analogRead(analogue_switches);
 	//Serial.println((x));
 	displayKeys(x);
+	//Serial.println(x);
 
 	updateDisplay(); //rotate messages etc if time to
 	heartBeat.update();
@@ -234,7 +227,7 @@ void loop(void) {
 		strcpy(devices[1].goodStatusMess, "OK");
 		manageRestarts(1);
 	} else {
-		strcpy(devices[1].goodStatusMess, "Disabled");
+		strcpy(devices[1].goodStatusMess, "OFF");
 		resetDevice(1);
 	}
 	manageRestarts(2);
@@ -253,22 +246,75 @@ void printFreeRam(void) {
 }
 
 void displayKeys(int x) {
-	/*	if (x < 60) {
-	 printDWithVal("L", x);
-	 } else if (x < 200) {
-	 printDWithVal("U", x);
-	 } else if (x < 400) {
-	 printDWithVal("D", x);
-	 } else if (x < 600) {
-	 printDWithVal("R", x);
-	 } else if (x < 800) {
-	 printDWithVal("K", x);
-	 }*/
+//	char key = ' ';
+//	if (x < 1000) {
+//		do {
+//			u8g2.clearBuffer();
+//			u8g2.setCursor(0,20);
+//			if (x < 60) {
+//				printDWithVal("L", x);
+//				key = 'L';
+//			} else if (x < 200) {
+//				printDWithVal("U", x);
+//				key = 'U';
+//			} else if (x < 400) {
+//				printDWithVal("D", x);
+//				key = 'D';
+//			} else if (x < 600) {
+//				printDWithVal("R", x);
+//				key = 'R';
+//			} else if (x < 800) {
+//				printDWithVal("K", x);
+//				key = 'K';
+//			}
+//			u8g2.sendBuffer();
+//			delay(1000);
+//			x = analogRead(analogue_switches);
+//		} while (key != 'K');
+//		//Serial.println("OUT OF WHILE");
+//	}
+}
+ //Callback function is called only when a valid code is received.
+void showCode(NewRemoteCode receivedCode) {
+  // Note: interrupts are disabled. You can re-enable them if needed.
+
+  // Print the received code.
+  Serial.print("Addr ");
+  Serial.print(receivedCode.address);
+
+  if (receivedCode.groupBit) {
+    Serial.print(" group");
+  }
+  else {
+    Serial.print(" unit ");
+    Serial.print(receivedCode.unit);
+  }
+
+  switch (receivedCode.switchType) {
+    case NewRemoteCode::off:
+      Serial.print(" off");
+      break;
+    case NewRemoteCode::on:
+      Serial.print(" on");
+      break;
+    case NewRemoteCode::dim:
+      Serial.print(" dim");
+      break;
+  }
+
+  if (receivedCode.dimLevelPresent) {
+    Serial.print(", dim level: ");
+    Serial.print(receivedCode.dimLevel);
+  }
+
+  Serial.print(", period: ");
+  Serial.print(receivedCode.period);
+  Serial.println("us.");
 }
 
 //check a unit and see if restart reqd
 void manageRestarts(int deviceID) {
-	// now check if need to reboot a device
+// now check if need to reboot a device
 	if ((millis() - devices[deviceID].lastGoodAckMillis)
 			> maxMillisNoAckFromPi) { // over time limit so reboot first time in then just upadte time each other time
 
@@ -276,14 +322,14 @@ void manageRestarts(int deviceID) {
 		if (devices[deviceID].isRebooting == 0) { // all this done first time triggered
 			//printD("Reboot : ");
 
-			devices[deviceID].isRebooting = 1; //signal device is rebooting
+			devices[deviceID].isRebooting = 1;		//signal device is rebooting
 
-			devices[deviceID].isPowerCycling = 1; // signal in power cycle
+			devices[deviceID].isPowerCycling = 1;		// signal in power cycle
 
 			powerCycle(deviceID);
 
-			devices[deviceID].isPowerCycling = 0; // signal in power cycle
-
+			devices[deviceID].isPowerCycling = 0;		// signal in power cycle
+			devices[deviceID].powerCyclesSincePowerOn++;
 			devices[deviceID].rebootMillisLeft = waitForPiPowerUpMillis;
 			devices[deviceID].lastRebootMillisLeftUpdate = millis();
 
@@ -320,33 +366,34 @@ void manageRestarts(int deviceID) {
 				Serial.println(deviceID);
 				//printD("Assume pi back up");
 				//printD2Str("Assume up:", devices[deviceID].name);
-				devices[deviceID].isRebooting = 0; //signal device has stopped rebooting
+				devices[deviceID].isRebooting = 0;//signal device has stopped rebooting
 			}
 		}
 	}
 }
 
 void updateDisplay(void) {
-	//all three lines can be displayed at once
-	//so no timer needed
-	//check if time to display a new message updates
+//all three lines can be displayed at once
 
-	int stateCounter; // only initialised once at start
+	int stateCounter;			// only initialised once at start
 	static unsigned long lastDispUpdateTimeMillis = 0;
-	int dispUpdateFreq = 2; // how many updates per sec
-	static unsigned long dispUpdateInterval = 1000/dispUpdateFreq;
 
-	unsigned long secsSinceAck = 0;
-	// max secs out considered good
+	static unsigned long dispUpdateInterval = 1000 / dispUpdateFreq;
+
+	unsigned int secsSinceAck = 0;
+// max secs out considered good
 
 	char str_output[20] = { 0 };
-	unsigned long secsLeft;
-	//Serial.println(stateCounter);
-	// this loop
-	//create info string for each zone then display it
-	//setup disp
+	unsigned int secsLeft;
+	char buf[4];
+//Serial.println(stateCounter);
+// this loop
+//create info string for each zone then display it
+//setup disp
 	u8g2.clearBuffer();
-	u8g2.setFont(u8g2_font_7x14_tf);
+//u8g2.setFont(u8g2_font_7x14_tf);
+
+//check if time to display a new message updates
 
 	if ((millis() - lastDispUpdateTimeMillis) >= dispUpdateInterval) { //ready to update?
 		printFreeRam();
@@ -371,10 +418,10 @@ void updateDisplay(void) {
 				//char str_output[20] = { 0 }; //, str_two[]="two";
 				//start with device name
 				strcpy(str_output, devices[stateCounter].name);
-				strcat(str_output,": ");
+				strcat(str_output, ": ");
 				//char message[] = " Reboot: ";
 				if (devices[stateCounter].isPowerCycling) {
-					strcat(str_output, "Power Cycling");
+					strcat(str_output, "Power Cycle");
 					printD(str_output);
 					//secsLeft = '';
 				} else {
@@ -382,87 +429,71 @@ void updateDisplay(void) {
 					printDWithVal(str_output, secsLeft);
 
 				}
-				//strcat(str_output, message);
-
-				//strcat(str_output, "Left: ");
-
-				//u8g2.print("r");
-
-				//u8g2.clearBuffer();
-
 			} else if ((secsSinceAck > goodSecsMax)) {
-
-				//u8g2.print("w");
 				strcpy(str_output, devices[stateCounter].name);
-				strcat(str_output,": ");
-				strcat(str_output,devices[stateCounter].badStatusMess);
+				strcat(str_output, ": ");
+				strcat(str_output, devices[stateCounter].badStatusMess);
+				strcat(str_output, ": ");
 				printDWithVal(str_output, secsSinceAck);
 				//badLED();
 				LEDsOff();
 			} else {
 				//u8g2.print("u");
 				strcpy(str_output, devices[stateCounter].name);
-				strcat(str_output,": ");
-				strcat(str_output,devices[stateCounter].goodStatusMess);
+				strcat(str_output, ": ");
+				strcat(str_output, devices[stateCounter].goodStatusMess);
+				//add restarts soince power on
+				strcat(str_output, " (");
+
+				sprintf(buf, "%i",
+						devices[stateCounter].powerCyclesSincePowerOn);
+
+				strcat(str_output, buf);
+				strcat(str_output, ")");
 				printD(str_output);
 				goodLED();
 			}
-
 		}
-		//now print out message line at correct cursor loc
-		//move cursor tonew loc
 		lastDispUpdateTimeMillis = millis();
 		u8g2.sendBuffer();
 	}
-	//now send buffer to display
-
 }
 
 void processMessage(void) {
-	// radio is available so read in payload and see who it's from
-	//and process accordingly
+	while (radio.available()) {            // Read all available payloads
 
-	//Serial.println(F(" - "));
-//	Serial.println((millis() - lastGoodAckMillis[unit]));
+		// Grab the message and process
+		uint8_t len = radio.getDynamicPayloadSize();
 
-	// Grab the message and process
-	uint8_t len = radio.getDynamicPayloadSize();
+		// If a corrupt dynamic payload is received, it will be flushed
+		if (!len) {
+			return;
+		}
 
-	// If a corrupt dynamic payload is received, it will be flushed
-	if (!len) {
-		return;
+		radio.read(receive_payload, len);
+
+		// Put a zero at the end for easy printing
+		receive_payload[len] = 0;
+
+		//who was it from?
+		//reset that timer
+		if (equalID(receive_payload, devices[0].heartBeatText)) {
+			resetDevice(0);
+			Serial.println(F("RESET GGG"));
+		} else if (equalID(receive_payload, devices[1].heartBeatText)) {
+			resetDevice(1);
+			//devices[1].lastGoodAckMillis = millis();
+			Serial.println(F("RESET CCC"));
+		} else if (equalID(receive_payload, devices[2].heartBeatText)) {
+			resetDevice(2);
+			//devices[2].lastGoodAckMillis = millis();
+			Serial.println(F("RESET SSS"));
+		} else {
+			Serial.println(F("NO MATCH"));
+			//badLED();
+			LEDsOff();
+		}
 	}
-
-	radio.read(receive_payload, len);
-
-	// Put a zero at the end for easy printing
-	receive_payload[len] = 0;
-
-	// Spew it
-	//Serial.print(F("Got message: "));
-	//Serial.print(len);
-	//Serial.print(F(" pre use value="));
-	//Serial.println(receive_payload);
-
-	//who was it from?
-	//reset that timer
-	if (equalID(receive_payload, devices[0].heartBeatText)) {
-		resetDevice(0);
-		Serial.println(F("RESET GGG"));
-	} else if (equalID(receive_payload, devices[1].heartBeatText)) {
-		resetDevice(1);
-		//devices[1].lastGoodAckMillis = millis();
-		Serial.println(F("RESET CCC"));
-	} else if (equalID(receive_payload, devices[2].heartBeatText)) {
-		resetDevice(2);
-		//devices[2].lastGoodAckMillis = millis();
-		Serial.println(F("RESET SSS"));
-	} else {
-		Serial.println(F("NO MATCH"));
-		//badLED();
-		LEDsOff();
-	}
-
 }
 
 void resetDevice(int deviceID) {
@@ -471,28 +502,19 @@ void resetDevice(int deviceID) {
 	devices[deviceID].rebootMillisLeft = 0;
 }
 void goodLED(void) {
-	//switch off red led
 	heartBeat.update();
-//	digitalWrite(redLEDPin, LOW);
-//	digitalWrite(greenLEDPin, HIGH);
 }
 void badLED(void) {
-	//switch off red led
 	rebootAlert.on();
 	heartBeat.update();
-//	digitalWrite(redLEDPin, HIGH);
-//	digitalWrite(greenLEDPin, LOW);
 }
 
 void LEDsOff(void) {
-	//switch off red led
 	heartBeat.update();
-//	digitalWrite(redLEDPin, LOW);
-	//digitalWrite(greenLEDPin, LOW);
 }
 
 int equalID(char *receive_payload, const char *targetID) {
-	//check if same 1st 3 chars
+//check if same 1st 3 chars
 	if ((receive_payload[0] == targetID[0])
 			&& (receive_payload[1] == targetID[1])
 			&& (receive_payload[2] == targetID[2])) {
@@ -503,48 +525,33 @@ int equalID(char *receive_payload, const char *targetID) {
 }
 
 void setPipes(uint8_t *writingPipe, uint8_t *readingPipe) {
-	//config radio to comm with a node
+//config radio to comm with a node
 	radio.stopListening();
 	radio.openWritingPipe(writingPipe);
 	radio.openReadingPipe(1, readingPipe);
 }
 
 void printD(const char *message) {
-//	display.clearDisplay();
-//	display.setCursor(0, 0);
 	u8g2.print(message);
-//	display.display();
 }
 
 void printDWithVal(const char *message, int value) {
-//	display.clearDisplay();
-//	display.setCursor(0, 0);
 	u8g2.print(message);
 	u8g2.print(value);
-//	display.display();
 }
+
 void printD2Str(const char *str1, const char *str2) {
-//	display.clearDisplay();
-//	display.setCursor(0, 0);
 	u8g2.print(str1);
 	u8g2.print(str2);
-//	display.display();
 }
 
 void powerCycle(int deviceID) {
-	//this is a blocking routine so need to keep checking messages and
-	//updating vars etc
-	// but do NOT do manage restarts as could be recursive and call this routine again.
-
-//	pinMode(redLEDPin, OUTPUT);
-//	digitalWrite(redLEDPin, HIGH);
-//	delay(100);
-//	digitalWrite(redLEDPin, LOW);
+//this is a blocking routine so need to keep checking messages and
+//updating vars etc
+// but do NOT do manage restarts as could be recursive and call this routine again.
 
 	if (transmitEnable == 1) {
 		Serial.println(F("sending off"));
-		//printDWithVal("Power off:", devices[deviceID].socketID);
-		//printD2Str("Power off:", devices[deviceID].name);
 		badLED();
 		//beep(1, 2, 1);
 		for (int i = 0; i < 3; i++) { // turn socket off
@@ -577,9 +584,7 @@ void powerCycle(int deviceID) {
 		LEDsOff();
 		//beep(1, 2, 1);
 		Serial.println(F("complete"));
-		//printD("PowerCyle:cycle done");
-		//resetDevice(deviceID);
-		//devices[deviceID].lastGoodAckMillis = millis();
+
 	} else {
 		Serial.println(F("not transmitting"));
 
