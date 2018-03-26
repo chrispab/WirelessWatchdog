@@ -11,9 +11,16 @@
 
 //investigate using 8x8 direct access
 //https://github.com/olikraus/u8g2/wiki/setup_tutorial
-#include <U8g2lib.h>
-U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE, /* clock=*/
-											SCL, /* data=*/SDA);			   // pin remapping with ESP8266 HW I2C
+//#include <U8g2lib.h>
+//#include <U8g2lib.h>
+#include <U8x8lib.h>
+
+//U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE, /* clock=*/
+//											SCL, /* data=*/SDA);			   // pin remapping with ESP8266 HW I2C
+
+// from https://github.com/olikraus/u8g2/wiki/u8x8setupcpp#ssd1306-128x32_univision
+//U8X8_SSD1306_128X32_UNIVISION_HW_I2C(/* reset=*/U8X8_PIN_NONE, /* clock=*/SCL, /* data=*/SDA);
+U8X8_SSD1306_128X32_UNIVISION_HW_I2C u8x8(/* reset=*/U8X8_PIN_NONE, /* clock=*/SCL, /* data=*/SDA); // pin remapping with ESP8266 HW I2C
 
 //#define OLD_HARDWARE
 ////#define NEW_HARDWARE
@@ -36,12 +43,12 @@ RF24 radio(RF24_CEPIN, RF24_CSPIN);
 
 //==================================================
 //all tweakable params etc
-#define SW_VERSION "2.3"
+#define SW_VERSION "2.5"
 
 //const int buzzer = 6;
 //const int SWITCH_PIN = SWITCH_PIN;			 // the number of the pushbutton pin
 //const int ANALOGUE_SWITCHES_PIN = ANALOGUE_SWITCHES_PIN; // ip port A0
-int dispUpdateFreq = 1.5;		 // how many updates per sec
+int dispUpdateFreq = 1.5; // how many updates per sec
 //const int REDLED_PIN = REDLED_PIN;
 //const int GREENLED_PIN = GREENLED_PIN;
 //const int BLUELED_PIN = BLUELED_PIN;
@@ -68,11 +75,11 @@ static unsigned long MAXMILLISNOACKFROMPI = 1000UL * 30UL;   //300 max millisces
 static unsigned long WAITFORPIPOWERUPMILLIS = 1000UL * 20UL; //120
 #else														 // new hardware
 //static unsigned int GOODSECSMAX = 15;						  //20
-#define GOODSECSMAX 15						  //20
+#define GOODSECSMAX 15										 //20
 //static unsigned long MAXMILLISNOACKFROMPI = 1000UL * 300UL;   //300 max millisces to wait if no ack from pi before power cycling pi
-#define MAXMILLISNOACKFROMPI  1000UL * 300UL //300 max millisces to wait if no ack from pi before power cycling pi
+#define MAXMILLISNOACKFROMPI 1000UL * 300UL					 //300 max millisces to wait if no ack from pi before power cycling pi
 //static unsigned long WAITFORPIPOWERUPMILLIS = 1000UL * 120UL; //120
-#define WAITFORPIPOWERUPMILLIS  1000UL * 120UL  //120
+#define WAITFORPIPOWERUPMILLIS 1000UL * 120UL				 //120
 #endif
 
 //const uint8_t transmitEnable = 1;
@@ -150,9 +157,9 @@ void setup(void)
 	pinMode(REDLED_PIN, OUTPUT);
 	pinMode(GREENLED_PIN, OUTPUT);
 	pinMode(BLUELED_PIN, OUTPUT);
-	badLED();
-	delay(100);
-	goodLED();
+	//badLED();
+	//delay(100);
+	//goodLED();
 	//digitalWrite(REDLED_PIN, LOW);
 	// initialize the pushbutton pin as an input:
 
@@ -163,7 +170,7 @@ void setup(void)
 	rebootAlert.begin();
 	rebootAlert.off();
 
-	blueAlert.begin();
+	//blueAlert.begin();
 	//beep(1, 2, 1);
 
 	Serial.begin(115200);
@@ -183,24 +190,45 @@ void setup(void)
 	radio.printDetails();
 	// autoACK enabled by default
 
-	u8g2.begin();
+	//u8x8.begin();
 
-	u8g2.clearBuffer();
+	//u8g2.clearBuffer();
 	//	u8g2.setFont(u8g2_font_t0_15_tf);
 	//	u8g2.setFont(u8g2_font_7x14_tf);
 	//u8g2.setFont(u8g2_font_profont15_tf);
 	//u8g2.setFont(u8g2_font_8x13B_tf);
-	u8g2.setFont(u8g2_font_8x13_tf);
+
+	//u8g2.setFont(u8g2_font_8x13_tf);
 
 	// 17 chars by 3 lines at this font size
-	u8g2.drawStr(30, 10, "Wireless");
-	u8g2.drawStr(30, 21, "Watchdog");
-	u8g2.drawStr(45, 32, SW_VERSION);
+	// u8g2.drawStr(30, 10, "Wireless");
+	// u8g2.drawStr(30, 21, "Watchdog");
+	// u8g2.drawStr(45, 32, SW_VERSION);
 
-	u8g2.sendBuffer();
+	// u8g2.sendBuffer();
+
+	// u8x8.setFont(u8x8_font_chroma48medium8_r);
+	// u8x8.drawString(0, 1, "Wireless");
+	// u8x8.drawString(1, 1, "Watchdog");
+	// u8x8.drawString(2, 1, SW_VERSION);
+
+	u8x8.begin();
+	u8x8.setPowerSave(0);
+	//u8x8.setFont(u8x8_font_chroma48medium8_r);
+	// fonts https://github.com/olikraus/u8g2/wiki/fntlist8x8
+
+	//u8x8.setFont(u8x8_font_amstrad_cpc_extended_r);
+	u8x8.setFont(u8x8_font_artossans8_r);
+
+	u8x8.setCursor(0, 0);
+	u8x8.drawString(0, 0, "Wireless");
+	u8x8.drawString(0, 1, "Watchdog");
+	u8x8.drawString(0, 2, SW_VERSION);
+
+	//u8g2.sendBuffer();
 
 	delay(3000);
-
+	u8x8.clear();
 	setPipes(writePipeLocC, readPipeLocC); // SHOULD NEVER NEED TO CHANGE PIPES
 	radio.startListening();
 
@@ -225,11 +253,11 @@ void loop(void)
 	//Serial.println((x));
 	displayKeys(x);
 	//Serial.println(x);
-
+	//u8x8.clear();
 	updateDisplay(); //rotate messages etc if time to
 	heartBeat.update();
 	rebootAlert.update();
-	blueAlert.update();
+	//blueAlert.update();
 	// check each device if restart reqd
 	manageRestarts(0);
 
@@ -298,6 +326,9 @@ void displayKeys(int x)
 	//		//Serial.println("OUT OF WHILE");
 	//	}
 }
+
+
+
 //Callback function is called only when a valid code is received.
 void showCode(NewRemoteCode receivedCode)
 {
@@ -364,13 +395,13 @@ void manageRestarts(int deviceID)
 			devices[deviceID].rebootMillisLeft = WAITFORPIPOWERUPMILLIS;
 			devices[deviceID].lastRebootMillisLeftUpdate = millis();
 
-			Serial.println("triggered reboot in manage reboots");
+			//Serial.println("triggered reboot in manage reboots");
 
 			Serial.println(devices[deviceID].rebootMillisLeft);
 			//delay(1000);
 		}
 		else
-		{   // this executes till end of reboot timer
+		{ // this executes till end of reboot timer
 			//device is rebooting now - do some stuff to update countdown timers
 			//wait for pi to come back up - do nothing
 			//millis since last update
@@ -397,7 +428,7 @@ void manageRestarts(int deviceID)
 			{ // reboot stuff completed here
 				//if (timerDone == 1) { // reboot stuff completed here
 				devices[deviceID].lastGoodAckMillis = millis();
-				Serial.print(F("Assume Pi back up:"));
+				Serial.print(F("Pi up:"));
 				Serial.println(deviceID);
 				//printD("Assume pi back up");
 				//printD2Str("Assume up:", devices[deviceID].name);
@@ -410,7 +441,7 @@ void manageRestarts(int deviceID)
 void updateDisplay(void)
 {
 	//all three lines can be displayed at once
-
+	//u8x8.clear();
 	int stateCounter; // only initialised once at start
 	static unsigned long lastDispUpdateTimeMillis = 0;
 
@@ -426,7 +457,9 @@ void updateDisplay(void)
 	// this loop
 	//create info string for each zone then display it
 	//setup disp
-	u8g2.clearBuffer();
+
+	//u8g2.clearBuffer();
+
 	//u8g2.setFont(u8g2_font_7x14_tf);
 
 	//check if time to display a new message updates
@@ -439,18 +472,19 @@ void updateDisplay(void)
 			//Serial.println(stateCounter);
 			secsSinceAck = (millis() - devices[stateCounter].lastGoodAckMillis) / 1000;
 
-			u8g2.setCursor(0, ((stateCounter + 1) * 10) + (1 * stateCounter));
+			u8x8.clearLine(stateCounter + 1);
+			u8x8.setCursor(0, ((stateCounter + 1))); //+ (1 * stateCounter));
 			// make sure check for restarting device
 			//if so display current secs in wait for reboot cycle
 			if (devices[stateCounter].isRebooting)
 			{
 				secsLeft = (devices[stateCounter].rebootMillisLeft) / 1000UL;
 
-				Serial.print(F("--rebootMillisLeft: "));
-				Serial.println((devices[stateCounter].rebootMillisLeft));
+				// Serial.print(F("--rebootMillisLeft: "));
+				// Serial.println((devices[stateCounter].rebootMillisLeft));
 
-				Serial.print(F("--secsLeft var: "));
-				Serial.println(secsLeft);
+				// Serial.print(F("--secsLeft var: "));
+				// Serial.println(secsLeft);
 
 				//build string to show if cycling or coming back up
 				//char str_output[20] = { 0 }; //, str_two[]="two";
@@ -499,7 +533,7 @@ void updateDisplay(void)
 			}
 		}
 		lastDispUpdateTimeMillis = millis();
-		u8g2.sendBuffer();
+		//u8g2.sendBuffer();
 	}
 }
 
@@ -594,19 +628,19 @@ void setPipes(uint8_t *writingPipe, uint8_t *readingPipe)
 
 void printD(const char *message)
 {
-	u8g2.print(message);
+	u8x8.print(message);
 }
 
 void printDWithVal(const char *message, int value)
 {
-	u8g2.print(message);
-	u8g2.print(value);
+	u8x8.print(message);
+	u8x8.print(value);
 }
 
 void printD2Str(const char *str1, const char *str2)
 {
-	u8g2.print(str1);
-	u8g2.print(str2);
+	u8x8.print(str1);
+	u8x8.print(str2);
 }
 
 void powerCycle(int deviceID)
@@ -617,41 +651,41 @@ void powerCycle(int deviceID)
 
 	//if (transmitEnable == 1)
 	//{
-		Serial.println(F("sending off"));
-		badLED();
-		//beep(1, 2, 1);
-		for (int i = 0; i < 3; i++)
-		{ // turn socket off
-			processMessage();
-			updateDisplay();
-			transmitter.sendUnit(devices[deviceID].socketID, false);
-		}
+	Serial.println(F("tx off"));
+	badLED();
+	//beep(1, 2, 1);
+	for (int i = 0; i < 3; i++)
+	{ // turn socket off
 		processMessage();
 		updateDisplay();
-		delay(1000);
-		processMessage();
-		updateDisplay();
-		delay(1000);
-		processMessage();
-		updateDisplay();
-		delay(1000);
-		processMessage();
-		updateDisplay();
-		// Switch Rxunit on
-		Serial.println(F("sending on"));
-		//printD2Str("Power on :", devices[deviceID].name);
+		transmitter.sendUnit(devices[deviceID].socketID, false);
+	}
+	processMessage();
+	updateDisplay();
+	delay(1000);
+	processMessage();
+	updateDisplay();
+	delay(1000);
+	processMessage();
+	updateDisplay();
+	delay(1000);
+	processMessage();
+	updateDisplay();
+	// Switch Rxunit on
+	Serial.println(F("tx on"));
+	//printD2Str("Power on :", devices[deviceID].name);
 
-		for (int i = 0; i < 3; i++)
-		{ // turn socket back on
-			processMessage();
-			updateDisplay();
-			transmitter.sendUnit(devices[deviceID].socketID, true);
-		}
+	for (int i = 0; i < 3; i++)
+	{ // turn socket back on
 		processMessage();
 		updateDisplay();
-		LEDsOff();
-		//beep(1, 2, 1);
-		Serial.println(F("OK"));
+		transmitter.sendUnit(devices[deviceID].socketID, true);
+	}
+	processMessage();
+	updateDisplay();
+	LEDsOff();
+	//beep(1, 2, 1);
+	Serial.println(F("OK"));
 	// }
 	// else
 	// {
@@ -659,16 +693,16 @@ void powerCycle(int deviceID)
 	// }
 }
 
-void beep(int numBeeps, int onDuration, int offDuration)
-{
-	for (int i = 0; i < numBeeps; i++)
-	{
-		//pinMode(buzzer, OUTPUT);
-		//digitalWrite(buzzer, HIGH);
-		delay(onDuration);
-		//digitalWrite(buzzer, LOW);
-		delay(offDuration);
-	}
-}
+// void beep(int numBeeps, int onDuration, int offDuration)
+// {
+// 	for (int i = 0; i < numBeeps; i++)
+// 	{
+// 		//pinMode(buzzer, OUTPUT);
+// 		//digitalWrite(buzzer, HIGH);
+// 		delay(onDuration);
+// 		//digitalWrite(buzzer, LOW);
+// 		delay(offDuration);
+// 	}
+// }
 
 // vim:cin:ai:sts=2 sw=2 ft=cpp
