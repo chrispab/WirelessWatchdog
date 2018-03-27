@@ -43,7 +43,10 @@ RF24 radio(RF24_CEPIN, RF24_CSPIN);
 
 //==================================================
 //all tweakable params etc
+#define LINE1 "MQTT443"
+#define LINE2 "WireDog"
 #define SW_VERSION "2.5"
+
 
 //const int buzzer = 6;
 //const int SWITCH_PIN = SWITCH_PIN;			 // the number of the pushbutton pin
@@ -96,8 +99,8 @@ struct controller
 	unsigned long lastGoodAckMillis;
 	char name[4];
 	char heartBeatText[4];   // allow enough space for text plus 1 extra for null terminator
-	char badStatusMess[10];  // enough for 1 line on display
-	char goodStatusMess[10]; // enough for 1 line on display
+	char badStatusMess[10];  // enough for 9 chars  on display
+	char goodStatusMess[10]; // enough for 9 chars on display
 	bool isRebooting;		 //indicate if booting up
 	bool isPowerCycling;	 //indicate if power cycling
 	unsigned long rebootMillisLeft;
@@ -111,47 +114,64 @@ void setup(void)
 {
 
 	//populate the array of controller structs
-	devices[0].id_number = 0;
-	devices[0].zone = 1;
+	//todo investigate using a loop to populate the device structs to reduce code size
+	for (int i = 0; i < 3; i++)
+	{
+		devices[i].id_number = i; //0 to 2
+		devices[i].zone = i + 1;  //1 to 3
+		devices[i].lastGoodAckMillis = millis();
+		devices[i].isRebooting = 0;
+		devices[i].isPowerCycling = 0;
+		devices[i].rebootMillisLeft = 0;
+		devices[i].lastRebootMillisLeftUpdate = millis();
+		devices[i].powerCyclesSincePowerOn = 0;
+		strcpy(devices[i].badStatusMess, "Away");
+		strcpy(devices[i].goodStatusMess, "OK");
+	}
+
+	// devices[0].id_number = 0;
+	// devices[0].zone = 1;
+	// devices[0].lastGoodAckMillis = millis();
+	// devices[0].isRebooting = 0;
+	// devices[0].isPowerCycling = 0;
+	// devices[0].rebootMillisLeft = 0;
+	// devices[0].lastRebootMillisLeftUpdate = millis();
+	// devices[0].powerCyclesSincePowerOn = 0;
+
+	// devices[1].id_number = 1;
+	// devices[1].zone = 2;
+	// devices[1].lastGoodAckMillis = millis();
+	// devices[1].isRebooting = 0;
+	// devices[1].isPowerCycling = 0;
+	// devices[1].rebootMillisLeft = 0;
+	// devices[1].lastRebootMillisLeftUpdate = millis();
+	// devices[1].powerCyclesSincePowerOn = 0;
+
+	// devices[2].id_number = 2;
+	// devices[2].zone = 3;
+	// devices[2].lastGoodAckMillis = millis();
+	// devices[2].isRebooting = 0;
+	// devices[2].isPowerCycling = 0;
+	// devices[2].rebootMillisLeft = 0;
+	// devices[2].lastRebootMillisLeftUpdate = millis();
+	// devices[2].powerCyclesSincePowerOn = 0;
+
+	// individual stuff
 	devices[0].socketID = 14;
-	devices[0].lastGoodAckMillis = millis();
 	strcpy(devices[0].name, "GRG");
 	strcpy(devices[0].heartBeatText, "GGG");
-	strcpy(devices[0].badStatusMess, "Away");
-	strcpy(devices[0].goodStatusMess, "OK");
-	devices[0].isRebooting = 0;
-	devices[0].isPowerCycling = 0;
-	devices[0].rebootMillisLeft = 0;
-	devices[0].lastRebootMillisLeftUpdate = millis();
-	devices[0].powerCyclesSincePowerOn = 0;
 
-	devices[1].id_number = 1;
-	devices[1].zone = 2;
 	devices[1].socketID = 4;
-	devices[1].lastGoodAckMillis = millis();
 	strcpy(devices[1].name, "CNV");
 	strcpy(devices[1].heartBeatText, "CCC");
-	strcpy(devices[1].badStatusMess, "Away");
-	strcpy(devices[1].goodStatusMess, "OK");
-	devices[1].isRebooting = 0;
-	devices[1].isPowerCycling = 0;
-	devices[1].rebootMillisLeft = 0;
-	devices[1].lastRebootMillisLeftUpdate = millis();
-	devices[1].powerCyclesSincePowerOn = 0;
+	// strcpy(devices[1].badStatusMess, "Away");
+	// strcpy(devices[1].goodStatusMess, "OK");
 
-	devices[2].id_number = 2;
-	devices[2].zone = 3;
 	devices[2].socketID = 15;
-	devices[2].lastGoodAckMillis = millis();
 	strcpy(devices[2].name, "SHD");
 	strcpy(devices[2].heartBeatText, "SSS");
-	strcpy(devices[2].badStatusMess, "Away");
-	strcpy(devices[2].goodStatusMess, "OK");
-	devices[2].isRebooting = 0;
-	devices[2].isPowerCycling = 0;
-	devices[2].rebootMillisLeft = 0;
-	devices[2].lastRebootMillisLeftUpdate = millis();
-	devices[2].powerCyclesSincePowerOn = 0;
+	// strcpy(devices[2].badStatusMess, "Away");
+	// strcpy(devices[2].goodStatusMess, "OK");
 
 	//setup leds
 	pinMode(REDLED_PIN, OUTPUT);
@@ -212,17 +232,17 @@ void setup(void)
 	// u8x8.drawString(1, 1, "Watchdog");
 	// u8x8.drawString(2, 1, SW_VERSION);
 
-	u8x8.begin();
-	u8x8.setPowerSave(0);
 	//u8x8.setFont(u8x8_font_chroma48medium8_r);
 	// fonts https://github.com/olikraus/u8g2/wiki/fntlist8x8
 
 	//u8x8.setFont(u8x8_font_amstrad_cpc_extended_r);
+	u8x8.begin();
+	//u8x8.setPowerSave(0);
 	u8x8.setFont(u8x8_font_artossans8_r);
 
-	u8x8.setCursor(0, 0);
-	u8x8.drawString(0, 0, "Wireless");
-	u8x8.drawString(0, 1, "Watchdog");
+	//u8x8.setCursor(0, 0);
+	u8x8.drawString(0, 0, LINE1);
+	u8x8.drawString(0, 1, LINE2);
 	u8x8.drawString(0, 2, SW_VERSION);
 
 	//u8g2.sendBuffer();
@@ -326,8 +346,6 @@ void displayKeys(int x)
 	//		//Serial.println("OUT OF WHILE");
 	//	}
 }
-
-
 
 //Callback function is called only when a valid code is received.
 void showCode(NewRemoteCode receivedCode)
