@@ -25,7 +25,7 @@ RF24 radio(7, 8);
 
 //==================================================
 //all tweakable params etc
-#define SW_VERSION "2.2"
+#define SW_VERSION "2.3"
 
 //const int buzzer = 6;
 const int switchPin = A7;     // the number of the pushbutton pin
