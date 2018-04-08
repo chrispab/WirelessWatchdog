@@ -33,7 +33,7 @@ const int analogue_switches = A0; // ip port A0
 int dispUpdateFreq = 1.5; // how many updates per sec
 const int redLEDPin = 3;
 const int greenLEDPin = 10;
-const int blueLEDPin = 9;
+const int blueLEDPin a= 9;
 LedFader heartBeat(greenLEDPin, 0, 20, 900);
 LedFader rebootAlert(redLEDPin, 0, 20, 456);
 LedFader blueAlert(blueLEDPin, 0, 0, 1321);
