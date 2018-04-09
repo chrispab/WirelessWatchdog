@@ -34,15 +34,23 @@ int equalID(char *receive_payload, const char *targetID);
 
 #define TX433PIN 5
 #define RX433PIN 2
-NewRemoteTransmitter transmitter(282830, TX433PIN, 254, 4);
-//NewRemoteReceiver receiver()
+#define TXRXPERIOD 254
+
+NewRemoteTransmitter transmitter(282830, TX433PIN, TXRXPERIOD); //default re-tx of 4
+
+//comment out to disable receiver
+NewRemoteReceiver receiver();
 
 // Set up nRF24L01 radio on SPI bus plus pins 7 & 8
 RF24 radio(7, 8);
 
 //==================================================
 //all tweakable params etc
-#define SW_VERSION "2.3"
+#define SW_VERSION "2.4"
+
+//remote info
+// jops remote bedroom - Addr 1574794 unit 0 on, period: 253us.
+//chris 16channel remote - Addr 282830 unit 4 on, period: 255us.
 
 //const int buzzer = 6;
 const int switchPin = A7;		  // the number of the pushbutton pin
@@ -288,6 +296,8 @@ void displayKeys(int x)
 	//		//Serial.println("OUT OF WHILE");
 	//	}
 }
+
+
 //Callback function is called only when a valid code is received.
 void showCode(NewRemoteCode receivedCode)
 {
